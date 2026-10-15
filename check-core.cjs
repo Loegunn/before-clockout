@@ -70,3 +70,25 @@ run("$('workperiod').value='pm'");assert.equal(run("consume('paper',30)"),true);
 run("S=fresh();S.date='2027-04-03'");assert.equal(run("consume('paper',30)"),false);
 run("S=fresh();S.expenses=[{id:'paid',amount:200,paid:true}];submitReimbursement('paid')");assert.equal(run('S.events.length'),0);
 console.log('PASS: direct upload, invalid submission no charge, no duplicate charge, busy slot refusal, afternoon selection, weekend refusal, paid reimbursement guard.');
+// AP and overtime expiry rules.
+run("S=fresh();$('workperiod').value='auto'");
+assert.equal(run("periodFree(S.date,'am')"),180);assert.equal(run("periodFree(S.date,'pm')"),240);
+run("S.events.push({id:'ten',date:S.date,time:'09:00',duration:10,type:'phone',people:[1],status:'planned'})");
+assert.equal(run("periodFree(S.date,'am')"),170);
+assert.equal(run("expiryAfterThreeMonths('2027-04-10')"),'2027-07-10');
+assert.equal(run("expiryAfterThreeMonths('2027-01-31')"),'2027-04-30');
+assert.equal(run("expiryAfterThreeMonths('2027-11-30')"),'2028-02-29');
+run("$('otdate').value=S.date;$('othours').value='0.5';$('otreason').value='补充文书';requestOvertime()");assert.equal(run('overtimeState().requests.length'),0);
+run("$('othours').value='1';requestOvertime()");assert.equal(run('overtimeState().requests.length'),1);assert.equal(run('S.ot'),0);
+run("S.events.push({id:'ot-task',date:S.date,time:'18:00',duration:30,type:'paper',people:[],overtime:true,status:'planned'});execute(S.events.at(-1))");assert.equal(run('S.ot'),1);run('execute(S.events.at(-1))');assert.equal(run('S.ot'),1);
+run("S.date='2027-07-10';overtimeState()");assert.equal(run('S.ot'),0);
+run("S=fresh();S.overtime={requests:[],ledger:[{id:'later',date:'2027-04-01',expires:'2027-07-01',minutes:240,remaining:240},{id:'earlier',date:'2027-03-01',expires:'2027-06-01',minutes:180,remaining:180}]}");
+assert.equal(run("planCompensation([{date:'2027-05-03',minutes:240}])[0].id"),'earlier');
+assert.equal(run("planCompensation([{date:'2027-07-01',minutes:60}])"),null);
+run("S.leaves.push({from:S.date,to:S.date,status:'approved',period:'am'})");assert.equal(run("periodFree(S.date,'am')"),0);assert.equal(run("periodFree(S.date,'pm')"),240);
+run("S=fresh();schedule('phone')");assert.ok(!elements.modal.innerHTML.includes('关联项目'));assert.ok(!elements.modal.innerHTML.includes('小组项目'));assert.ok(!elements.modal.innerHTML.includes('type="time"'));
+run("schedule('group')");assert.ok(elements.modal.innerHTML.includes('小组项目'));
+// Direct paperwork can use an approved overtime block and grants it only once.
+run("S=fresh();$('workperiod').value='ot';$('otdate').value=S.date;$('othours').value='1';$('otreason').value='到期文书';requestOvertime()");
+assert.equal(run("consume('paper',30)"),true);assert.equal(run('S.ot'),1);assert.equal(run("consume('paper',30)"),true);assert.equal(run('S.ot'),1);assert.equal(run("consume('paper',30)"),false);
+console.log('PASS: AM/PM budgets, minimum overtime, approval vs completion, three-month expiry and leap-month edge, FIFO compensation, future expiry refusal, partial leave, service-specific forms, direct overtime paperwork.');
