@@ -111,3 +111,36 @@ run("S.events=[{id:'blockedApril',type:'small',date:'2027-04-15',time:'09:00',du
 sandbox.document.documentElement={setAttribute(k,v){this[k]=v},getAttribute(k){return this[k]}};
 run("applyTheme('dark')");assert.equal(sandbox.document.documentElement['data-theme'],'dark');run('toggleTheme()');assert.equal(sandbox.document.documentElement['data-theme'],'light');
 console.log('PASS: modal-visible feedback, monthly unuploaded visit history, same-household reminder, April restrictions and policy exception, preservation of completed services, theme switching.');
+
+// Review fixes: month-end on rest days, one budget per activity, overtime credit, minimum learning time,
+// paperwork after service, holiday editing, safe imports, leave cooldown, charity follow-up.
+run("ensureMonthlySupervision=()=>{};S=fresh()");
+assert.equal(run("docDeadline({date:'2027-07-29'})"),'2027-07-30');assert.equal(run("docDeadline({date:'2027-10-28'})"),'2027-10-29');assert.equal(run("docDeadline({date:'2027-07-31'})"),'2027-07-31');assert.equal(run("docDeadline({date:'2028-03-30'})"),'2028-03-31');
+run("S.date='2027-05-03';S.expenses=[{id:'one',month:'2027-05',name:'a',project:'',amount:200,approved:true,used:false,paid:false}]");
+run("var a={id:'a1',date:'2027-05-04',time:'09:00',duration:60,type:'small',people:[1],project:'',overtime:false,status:'planned'};var b={...a,id:'a2',date:'2027-05-05',people:[2]}");
+assert.equal(run('validateEvent(a)'),'');run('S.events.push(a)');assert.equal(run('a.expense'),'one');
+assert.ok(run('validateEvent(b)').includes('只对应一场'));
+run("S.events.push({...b,expense:undefined});S.date='2027-05-04';executeToday();S.date='2027-05-05';executeToday()");
+assert.equal(run("S.events.find(e=>e.id==='a2').status"),'cancelled');assert.equal(run("S.docs.filter(d=>d.type==='small').length"),1);
+run("cancelEvent('a1')");// a used budget stays used
+run("S=fresh();S.date='2027-05-08';$('otdate').value=S.date;$('othours').value='6';$('otreason').value='x';requestOvertime();var r=overtimeState().requests[0]");
+run("var hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');S.events.push({id:'p1',date:S.date,time:hm(r.start),duration:10,type:'phone',people:[1],project:'',overtime:true,status:'planned'});executeToday()");assert.equal(run('S.ot'),1);
+run("S.events.push({id:'p2',date:S.date,time:hm(r.start+10),duration:170,type:'research',people:[],project:'',overtime:true,status:'planned'});execute(S.events.at(-1))");assert.equal(run('S.ot'),3.5);
+run("execute(S.events.at(-1))");assert.equal(run('S.ot'),3.5);
+run("S=fresh()");assert.ok(run("validateEvent({date:S.date,time:'09:00',duration:10,type:'training',people:[],project:'',overtime:false})").includes('至少60'));
+assert.equal(run("validateEvent({date:S.date,time:'09:00',duration:60,type:'training',people:[],project:'',overtime:false})"),'');
+run("S=fresh();$('workperiod').value='auto';S.events=[{id:'late',type:'home',date:S.date,time:'16:00',duration:30,people:[1],project:'',status:'planned'}];executeToday();$('doctext').value='已探访';uploadDoc(S.docs[0].id)");
+assert.equal(run('S.docs[0].uploaded'),true);assert.equal(run("S.events.find(e=>e.directSubmission).time"),'16:30');
+run("S=fresh();S.events=[{id:'tooLate',type:'home',date:S.date,time:'17:30',duration:30,people:[1],project:'',status:'planned'}];executeToday();$('doctext').value='已探访';uploadDoc(S.docs[0].id)");assert.equal(run('S.docs[0].uploaded'),false);
+run("S=fresh();S.date='2027-05-20';$('hdate').value='2027-05-03';$('hname').value='x';$('hoff').value='yes';setHoliday()");assert.equal(run("!!S.holidays['2027-05-03']"),false);
+run("$('hdate').value='2027-05-24';setHoliday()");assert.equal(run("isOff('2027-05-24')"),true);run("removeHoliday('2027-05-24')");assert.equal(run("isOff('2027-05-24')"),false);
+run("S=fresh()");assert.equal(run('safeSave(JSON.parse(JSON.stringify(S)))'),true);
+run("var bad=JSON.parse(JSON.stringify(S));bad.people[0].need='<img src=x onerror=alert(1)>'");assert.equal(run('safeSave(bad)'),false);
+run("bad=JSON.parse(JSON.stringify(S));bad.people[0].id='1);alert(1'");assert.equal(run('safeSave(bad)'),false);
+run("bad=JSON.parse(JSON.stringify(S));bad.events=[{id:'x',type:'nope',date:'2027-04-01',time:'09:00',duration:30,people:[]}]");assert.equal(run('safeSave(bad)'),false);
+run("var okText=JSON.parse(JSON.stringify(S));okText.docs=[{id:'d',type:'home',requirements:['跟进记录'],text:'伯伯说\"今日好啲\"'}]");assert.equal(run('safeSave(okText)'),true);
+run("S=fresh();S.date='2027-05-03';$('lfrom').value='2027-05-10';$('lto').value='2027-05-10';$('ltype').value='leave';$('lperiod').value='all';var realRandom=Math.random;Math.random=()=>0.99;requestLeave();Math.random=()=>0;requestLeave();Math.random=realRandom");
+assert.equal(run('S.leaves.length'),1);assert.equal(run('S.leaves[0].status'),'rejected');
+run("S=fresh();S.incidents['2027-05']='2027-05-15'");assert.ok(run("monthlyGaps('2027-05')").includes('未参与大型义卖支援'));
+run("S.events.push({id:'c',type:'charity',date:'2027-05-15',time:'09:00',duration:240,people:[],status:'done'})");assert.ok(!run("monthlyGaps('2027-05')").includes('未参与大型义卖支援'));
+console.log('PASS: rest-day month end, one budget per activity, overtime by actual work, 60-minute learning minimum, paperwork after service, future-only holidays with delete, safe import, same-day leave cooldown, charity gap.');
