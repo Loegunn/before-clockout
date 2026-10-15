@@ -9,8 +9,8 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY))||fresh()}catch{S=fresh()}let p
 const names={calendar:'工作日历',people:'社区名册',projects:'工作手法',system:'模拟服务系统',finance:'经费与报销',learning:'培训与督导',review:'月结与评估',rules:'规则与设置'};
 const types={home:['入户探访',30],phone:['电话访问',10],contact:['WeChat 跟进',15],case:['个案服务',60],group:['小组活动',60],small:['小型社区活动',60],policy:['政策宣传',60],large:['中大型社区活动',60],org:['联动社会组织',60],team:['培育老年志愿队',90],vol:['志愿队持续服务',120],training:['协会视频培训',120],supervision:['个别／小组督导',120],research:['社区调研',120],plan:['年度计划',120],report:['自评报告',120],roster:['街道名单核对',30],fund:['月初经费申请',30],paper:['文书整理与上传',30],reimburse:['整理报销材料',30],charity:['大型义卖支援',240]};
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch{toast('本机存储已满，请导出存档')}render()}
-function toast(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>$('toast').style.display='none',4200)}
-function show(html){$('modal').innerHTML=html;$('dialog').showModal()}function closeModal(){$('dialog').close()}
+function toast(s){if($('dialog').open&&$('modalFeedback')){$('modalFeedback').textContent=s;$('modalFeedback').hidden=false;$('modalFeedback').scrollIntoView({block:'nearest'});}$('toast').textContent=s;$('toast').style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>$('toast').style.display='none',4200)}
+function show(html){$('modal').innerHTML='<div id="modalFeedback" class="warn" role="alert" hidden></div>'+html;$('dialog').showModal()}function closeModal(){$('dialog').close()}
 function nav(p){page=p;render()}
 function isOff(s){if(S.holidays[s])return S.holidays[s].off;return [0,6].includes(dt(s).getDay())}
 function done(type,from='2027-04-01',to=S.date){return S.events.filter(e=>e.type===type&&e.status==='done'&&e.date>=from&&e.date<=to)}
