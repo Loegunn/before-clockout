@@ -24,12 +24,12 @@ assert.equal(run("fixedDuration({type:'home',people:[1,3]})"),60);
 assert.equal(run("fixedDuration({type:'phone',people:[1,2]})"),20);
 assert.equal(run("fixedDuration({type:'group',people:[]})"),60);
 for(const t of ['small','policy','large']) assert.equal(run(`fixedDuration({type:'${t}',people:[]})`),60);
-assert.equal(run("docDeadline({date:'2027-04-01'})"),'2027-04-03');
+assert.equal(run("docDeadline({date:'2027-04-01'})"),'2027-04-05');
 assert.equal(run("docDeadline({date:'2027-04-30'})"),'2027-04-30');
 assert.equal(run("docDeadline({date:'2028-02-28'})"),'2028-02-29');
 // Deadline gate blocks only beyond deadline, not before; work may execute on deadline.
 run("S=fresh();S.date='2027-04-02';S.docs=[{id:'deadline',date:'2027-04-01',type:'training',requirements:['心得'],uploaded:false}];advance()");
-assert.equal(run('S.date'),'2027-04-03');run('advance()');assert.equal(run('S.date'),'2027-04-03');
+assert.equal(run('S.date'),'2027-04-03');run('advance()');assert.equal(run('S.date'),'2027-04-04');run('advance()');assert.equal(run('S.date'),'2027-04-05');run('advance()');assert.equal(run('S.date'),'2027-04-05');
 run("S.events=[{id:'credit',type:'paper',date:S.date,time:'09:00',duration:30,status:'planned',people:[]}];executeToday();executeToday()");
 assert.equal(run('S.events[0].capacity'),30);
 // Short but meaningful reflection accepted; empty reflection rejected without consuming time.
@@ -37,7 +37,7 @@ run("S.events.push({id:'training',type:'training',date:'2027-04-01',duration:120
 sandbox.document.querySelectorAll=sel=>sel==='input[name=attachment]:checked'?[{}]:[];
 run("$('doctext').value='   ';uploadDoc('deadline')");assert.equal(run('S.docs[0].uploaded'),false);assert.equal(run('S.events[0].capacity'),30);
 run("$('doctext').value='學到傾聽技巧';uploadDoc('deadline')");assert.equal(run('S.docs[0].uploaded'),true);assert.equal(run('S.events[0].capacity'),0);
-run("advance()");assert.equal(run('S.date'),'2027-04-04');
+run("advance()");assert.equal(run('S.date'),'2027-04-06');
 console.log('PASS: fixed durations, household batching, two-day and month-end deadlines, idempotent same-day execution, short reflection upload.');
 for(const p of ['home','actions','relations','history'])run(`page='${p}';render()`);
 run("S=fresh();page='home';render();bookTalk(1,'讨论服务中的困惑');executeToday()");
@@ -92,3 +92,12 @@ run("schedule('group')");assert.ok(elements.modal.innerHTML.includes('小组项�
 run("S=fresh();$('workperiod').value='ot';$('otdate').value=S.date;$('othours').value='1';$('otreason').value='到期文书';requestOvertime()");
 assert.equal(run("consume('paper',30)"),true);assert.equal(run('S.ot'),1);assert.equal(run("consume('paper',30)"),true);assert.equal(run('S.ot'),1);assert.equal(run("consume('paper',30)"),false);
 console.log('PASS: AM/PM budgets, minimum overtime, approval vs completion, three-month expiry and leap-month edge, FIFO compensation, future expiry refusal, partial leave, service-specific forms, direct overtime paperwork.');
+
+run("S=fresh()");
+assert.equal(run("docDeadline({date:'2027-04-02'})"),'2027-04-06');
+assert.equal(run("docDeadline({date:'2027-04-03'})"),'2027-04-06');
+run("S.holidays['2027-04-05']={off:true,name:'测试假期'}");
+assert.equal(run("docDeadline({date:'2027-04-01'})"),'2027-04-06');
+run("S.holidays['2027-04-03']={off:false,name:'测试补班'}");
+assert.equal(run("docDeadline({date:'2027-04-01'})"),'2027-04-03');
+console.log('PASS: two working days, weekend progression, holiday exclusion, makeup workdays, existing month-end cap.');
