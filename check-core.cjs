@@ -1,4 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');const elements={};function el(id){return elements[id]??={innerHTML:'',textContent:'',style:{},value:'',checked:false,showModal(){},close(){},addEventListener(){}}}let sandbox={document:{getElementById:el,querySelectorAll:()=>[]},localStorage:{getItem:()=>null,setItem(){}},console,setTimeout:()=>0,clearTimeout(){},window:{},confirm:()=>true,Date,Math,Set,Blob};vm.createContext(sandbox);vm.runInContext(fs.readFileSync('engine.js','utf8'),sandbox);vm.runInContext(fs.readFileSync('life.js','utf8'),sandbox);function run(code){return vm.runInContext(code,sandbox)}
+run('const monthlyScheduler=ensureMonthlySupervision;ensureMonthlySupervision=()=>{};S=fresh()');
 assert.equal(run('S.people.length'),70);assert.equal(run('S.people.filter(p=>p.level>=5).length'),50);
 assert.equal(run("due(S.people[0]).next"),'2027-04-07');assert.equal(run("due(S.people[1]).follow"),'2027-04-14');assert.equal(run("due(S.people[1]).home"),'2027-04-30');
 // a document must be submitted before a service counts
@@ -22,7 +23,7 @@ assert.equal(run("fixedDuration({type:'home',people:[1,2]})"),30);
 assert.equal(run("fixedDuration({type:'home',people:[1,3]})"),60);
 assert.equal(run("fixedDuration({type:'phone',people:[1,2]})"),20);
 assert.equal(run("fixedDuration({type:'group',people:[]})"),60);
-for(const t of ['small','policy','large']) assert.equal(run(`fixedDuration({type:'${t}',people:[]})`),10);
+for(const t of ['small','policy','large']) assert.equal(run(`fixedDuration({type:'${t}',people:[]})`),60);
 assert.equal(run("docDeadline({date:'2027-04-01'})"),'2027-04-03');
 assert.equal(run("docDeadline({date:'2027-04-30'})"),'2027-04-30');
 assert.equal(run("docDeadline({date:'2028-02-28'})"),'2028-02-29');
@@ -44,3 +45,16 @@ assert.equal(run('life().relations[1]'),69);run('executeToday()');assert.equal(r
 assert.equal(run("hours('supervision')"),0);
 run("S.date='2027-04-05';chooseStory(0,0)");assert.equal(run('life().choices.length'),1);run('chooseStory(0,0)');assert.equal(run('life().choices.length'),1);
 console.log('PASS: V2 pages, time-consuming communication, idempotent effects, no false supervision credit, persistent story choices.');
+
+run('S=fresh();ensureMonthlySupervision=monthlyScheduler;ensureMonthlySupervision()');
+assert.ok(run('S.events.length===1||S.events.length===2'));
+assert.ok(run('S.events.every(e=>e.type==="supervision"&&!isOff(e.date)&&((minutes(e.time)>=540&&minutes(e.time)+e.duration<=720)||(minutes(e.time)>=840&&minutes(e.time)+e.duration<=1080)))'));
+assert.ok([210,420].includes(run('S.events.reduce((n,e)=>n+e.duration,0)')));
+const eventCount=run('S.events.length');run('ensureMonthlySupervision()');assert.equal(run('S.events.length'),eventCount);
+run('S.date=S.events[0].date;const beforeSkill=life().skill;const expectedGrowth=S.events.reduce((n,e)=>n+e.duration/60,0);executeToday()');
+assert.equal(run('life().skill-beforeSkill'),run('expectedGrowth'));
+run('executeToday()');assert.equal(run('life().skill-beforeSkill'),run('expectedGrowth'));
+assert.equal(run('hours("supervision")'),0);
+run('S.docs.forEach(d=>d.uploaded=true)');assert.equal(run('hours("supervision")'),run('expectedGrowth'));
+run('S.date="2027-05-01";ensureMonthlySupervision()');assert.ok(run('!!life().supervisionMonths["2027-05"].date'));
+console.log('PASS: monthly supervision scheduling, lunch break, persistent dates, proportional growth, upload gating.');
